@@ -61,17 +61,17 @@ required-features = ["render"]
 
 [dependencies]
 egui = { version = "0.29", default-features = false }
-bevy_app = "0.15.0"
-bevy_derive = "0.15.0"
-bevy_ecs = "0.15.0"
-bevy_input = "0.15.0"
-bevy_log = "0.15.0"
-bevy_math = "0.15.0"
-bevy_reflect = "0.15.0"
-bevy_time = "0.15.0"
-bevy_utils = "0.15.0"
-bevy_winit = { version = "0.15.0", features = ["custom_cursor"] }
-bevy_window = "0.15.0"
+bevy_app = { git = "https://github.com/gehud/bevy.git", branch = "bevy_editor" }
+bevy_derive = { git = "https://github.com/gehud/bevy.git", branch = "bevy_editor"  }
+bevy_ecs = { git = "https://github.com/gehud/bevy.git", branch = "bevy_editor"  }
+bevy_input = { git = "https://github.com/gehud/bevy.git", branch = "bevy_editor"  }
+bevy_log = { git = "https://github.com/gehud/bevy.git", branch = "bevy_editor"  }
+bevy_math = { git = "https://github.com/gehud/bevy.git", branch = "bevy_editor"  }
+bevy_reflect = { git = "https://github.com/gehud/bevy.git", branch = "bevy_editor"  }
+bevy_time = { git = "https://github.com/gehud/bevy.git", branch = "bevy_editor"  }
+bevy_utils = { git = "https://github.com/gehud/bevy.git", branch = "bevy_editor"  }
+bevy_winit = { git = "https://github.com/gehud/bevy.git", branch = "bevy_editor",  features = ["custom_cursor"] }
+bevy_window = { git = "https://github.com/gehud/bevy.git", branch = "bevy_editor"  }
 
 # `open_url` feature
 webbrowser = { version = "1.0.1", optional = true }
