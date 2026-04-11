@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy_egui::{
     EguiContext, EguiContextSettings, EguiFullOutput, EguiInput, EguiPlugin, EguiStartupSet,
 };
+use egui::Ui;
 use std::num::NonZero;
 
 fn main() {
@@ -33,8 +34,8 @@ fn ui_example_system(
 ) -> Result {
     let (mut ctx, mut egui_input, mut egui_full_output) = contexts.single_mut()?;
 
-    let ui = |ctx: &egui::Context| {
-        egui::Window::new("Hello").show(ctx, |ui| {
+    let ui = |ui: &mut Ui| {
+        egui::Window::new("Hello").show(ui.ctx(), |ui| {
             let passes = ui
                 .ctx()
                 .viewport(|viewport| viewport.output.num_completed_passes)
@@ -49,7 +50,7 @@ fn ui_example_system(
         memory.options.max_passes = NonZero::new(5).unwrap();
     });
 
-    **egui_full_output = Some(ctx.run(egui_input.take(), ui));
+    **egui_full_output = Some(ctx.run_ui(egui_input.take(), ui));
 
     Ok(())
 }

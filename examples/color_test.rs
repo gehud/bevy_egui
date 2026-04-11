@@ -226,8 +226,15 @@ fn ui_system(
     images: Res<Assets<bevy::image::Image>>,
 ) -> Result {
     let ctx = contexts.ctx_mut()?;
-    app_state.top_panel_height = egui::TopBottomPanel::top("top_panel")
-        .show(ctx, |ui| {
+
+    let mut ui = Ui::new(
+        ctx.clone(),
+        ctx.viewport_id().into(),
+        UiBuilder::new().layer_id(LayerId::background()),
+    );
+
+    app_state.top_panel_height = egui::Panel::top("top_panel")
+        .show_inside(&mut ui, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(
                     &mut app_state.displayed_ui,
@@ -252,7 +259,7 @@ fn ui_system(
 
     match app_state.displayed_ui {
         DisplayedUi::Regular => {
-            egui::CentralPanel::default().show(ctx, |ui| {
+            egui::CentralPanel::default().show_inside(&mut ui, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     app_state.color_test.ui(ui);
                 });
@@ -265,7 +272,7 @@ fn ui_system(
                 .expect("Expected a created image");
             egui::CentralPanel::default()
                 .frame(egui::Frame::NONE)
-                .show(ctx, |ui| {
+                .show_inside(&mut ui, |ui| {
                     ui.image(egui::load::SizedTexture::new(
                         app_state.egui_texture_image_id,
                         [
@@ -284,7 +291,15 @@ fn render_to_image_ui_system<C: Component>(
     mut app_state: ResMut<AppState>,
     mut context: Single<&mut EguiContext, With<C>>,
 ) {
-    egui::CentralPanel::default().show(context.get_mut(), |ui| {
+    let ctx = context.get_mut().clone();
+
+    let mut ui = Ui::new(
+        ctx,
+        "image_viewport".into(),
+        UiBuilder::new().layer_id(LayerId::background()),
+    );
+
+    egui::CentralPanel::default().show_inside(&mut ui, |ui| {
         egui::ScrollArea::vertical().show(ui, |ui| {
             app_state.color_test.ui(ui);
         });
@@ -298,9 +313,9 @@ fn render_to_image_ui_system<C: Component>(
 use bevy_camera::RenderTarget;
 use bevy_ecs::schedule::ScheduleLabel;
 use egui::{
-    Align2, Color32, FontId, Image, Mesh, Pos2, Rect, Response, Rgba, RichText, Sense, Shape,
-    Stroke, TextureHandle, TextureOptions, Ui, Vec2, emath::GuiRounding, epaint, lerp, pos2, vec2,
-    widgets::color_picker::show_color,
+    Align2, Color32, FontId, Image, LayerId, Mesh, Pos2, Rect, Response, Rgba, RichText, Sense,
+    Shape, Stroke, TextureHandle, TextureOptions, Ui, UiBuilder, Vec2, emath::GuiRounding, epaint,
+    lerp, pos2, vec2, widgets::color_picker::show_color,
 };
 use std::collections::HashMap;
 use wgpu_types::{Extent3d, TextureUsages};
