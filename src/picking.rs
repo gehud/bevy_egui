@@ -1,7 +1,3 @@
-use crate::{
-    EguiContext, helpers,
-    input::{EguiContextPointerPosition, HoveredNonWindowEguiContext},
-};
 use bevy_asset::Assets;
 use bevy_camera::{Camera, NormalizedRenderTarget, RenderTarget};
 use bevy_ecs::{
@@ -13,7 +9,7 @@ use bevy_ecs::{
     prelude::{AnyOf, Commands, Query, With},
 };
 use bevy_math::{Ray3d, Vec2};
-use bevy_mesh::{Indices, Mesh, Mesh2d, Mesh3d, VertexAttributeValues};
+use bevy_mesh::{Indices, Mesh, Mesh2d, Mesh3d, PrimitiveTopology, VertexAttributeValues};
 use bevy_picking::{
     Pickable,
     events::{Move, Out, Over, Pointer},
@@ -22,7 +18,11 @@ use bevy_picking::{
 };
 use bevy_transform::components::GlobalTransform;
 use bevy_window::PrimaryWindow;
-use wgpu_types::PrimitiveTopology;
+
+use crate::{
+    EguiContext, helpers,
+    input::{EguiContextPointerPosition, HoveredNonWindowEguiContext},
+};
 
 /// This component marks an Entity that displays Egui as an image for [`bevy_picking`] integration
 /// (currently, only [`bevy_mesh::Mesh2d`] or [`bevy_mesh::Mesh3d`] are supported for picking).

@@ -155,7 +155,6 @@ fn render_to_image_example_system(
 ) -> Result {
     let cube_preview_texture_id = contexts.image_id(&**cube_preview_image).unwrap();
     let preview_material_handle = preview_cube_query.single()?;
-    let preview_material = materials.get_mut(preview_material_handle).unwrap();
 
     let ctx = contexts.ctx_mut()?;
     let mut apply = false;
@@ -164,6 +163,9 @@ fn render_to_image_example_system(
             cube_preview_texture_id,
             egui::vec2(300., 300.),
         ));
+
+        let mut preview_material = materials.get_mut(preview_material_handle).unwrap();
+
         egui::Grid::new("preview").show(ui, |ui| {
             ui.label("Base color:");
             color_picker_widget(ui, &mut preview_material.base_color);
@@ -192,7 +194,7 @@ fn render_to_image_example_system(
     });
 
     if apply {
-        let material_clone = preview_material.clone();
+        let material_clone = materials.get_mut(preview_material_handle).unwrap().clone();
 
         let main_material_handle = main_cube_query.single()?;
         materials.insert(main_material_handle, material_clone)?;

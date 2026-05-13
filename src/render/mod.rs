@@ -1,10 +1,54 @@
-pub use render_pass::*;
+pub(crate) mod render_pass;
+/// Plugin systems for the render app.
+#[cfg(feature = "render")]
+pub mod systems;
+
 use std::{
     cmp::min,
     num::{NonZero, NonZeroU32},
 };
 
-/// Defines Egui node graph.
+use bevy_asset::{Handle, RenderAssetUsages, uuid_handle};
+use bevy_camera::Camera;
+use bevy_ecs::{
+    component::Component,
+    entity::Entity,
+    resource::Resource,
+    system::{Commands, Local, Res, ResMut},
+    world::{FromWorld, World},
+};
+use bevy_image::{Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor};
+use bevy_log::{error, info, warn};
+use bevy_math::{Mat4, UVec4};
+use bevy_mesh::{VertexBufferLayout, VertexFormat};
+use bevy_platform::collections::HashSet;
+use bevy_render::{
+    MainWorld,
+    camera::CameraMainPassTextureFormats,
+    render_phase::TrackedRenderPass,
+    render_resource::{
+        BindGroupLayoutDescriptor, BindGroupLayoutEntries, FragmentState, RenderPipelineDescriptor,
+        SamplerBindingType, ShaderStages, SpecializedRenderPipeline, TextureSampleType,
+        VertexState,
+        binding_types::{sampler, texture_2d, uniform_buffer},
+    },
+    renderer::{RenderAdapterInfo, RenderContext, RenderDevice},
+    sync_world::{RenderEntity, TemporaryRenderEntity},
+    view::{ExtractedView, RetainedViewEntity},
+};
+use bevy_shader::{Shader, ShaderDefVal};
+use egui::{TextureFilter, TextureOptions};
+use wgpu_types::{
+    Backend, BlendState, ColorTargetState, ColorWrites, Extent3d, Features, Limits,
+    MultisampleState, PrimitiveState, TextureDimension, TextureFormat, VertexStepMode,
+};
+
+use crate::{
+    EguiContextSettings, EguiRenderOutput, RenderComputedScaleFactor,
+    render::systems::{EguiTextureId, EguiTransform},
+};
+
+#[allow(missing_docs)]
 pub mod graph {
     use bevy_ecs::schedule::SystemSet;
 
@@ -15,55 +59,6 @@ pub mod graph {
         EguiPass,
     }
 }
-
-use crate::{
-    EguiContextSettings, EguiRenderOutput, RenderComputedScaleFactor, render::graph::NodeEgui,
-};
-use bevy_app::SubApp;
-use bevy_asset::{Handle, RenderAssetUsages, uuid_handle};
-use bevy_camera::{Camera, Hdr};
-use bevy_ecs::{
-    component::Component,
-    entity::Entity,
-    query::Has,
-    resource::Resource,
-    system::{Commands, Local, ResMut},
-    world::{FromWorld, World},
-};
-use bevy_image::{
-    BevyDefault, Image, ImageAddressMode, ImageFilterMode, ImageSampler, ImageSamplerDescriptor,
-};
-use bevy_math::{Mat4, UVec4};
-use bevy_mesh::VertexBufferLayout;
-use bevy_platform::collections::HashSet;
-use bevy_render::{
-    MainWorld,
-    render_phase::TrackedRenderPass,
-    render_resource::{
-        BindGroupLayoutEntries, FragmentState, RenderPipelineDescriptor, SpecializedRenderPipeline,
-        VertexState,
-        binding_types::{sampler, texture_2d, uniform_buffer},
-    },
-    renderer::{RenderContext, RenderDevice},
-    sync_world::{RenderEntity, TemporaryRenderEntity},
-    view::{ExtractedView, RetainedViewEntity, ViewTarget},
-};
-use bevy_shader::{Shader, ShaderDefVal};
-use egui::{TextureFilter, TextureOptions};
-
-use bevy_log::{error, info, warn};
-use bevy_render::{render_resource::BindGroupLayoutDescriptor, renderer::RenderAdapterInfo};
-use systems::{EguiTextureId, EguiTransform};
-use wgpu_types::{
-    Backend, BlendState, ColorTargetState, ColorWrites, Extent3d, Features, Limits,
-    MultisampleState, PrimitiveState, PushConstantRange, SamplerBindingType, ShaderStages,
-    TextureDimension, TextureFormat, TextureSampleType, VertexFormat, VertexStepMode,
-};
-
-mod render_pass;
-/// Plugin systems for the render app.
-#[cfg(feature = "render")]
-pub mod systems;
 
 /// A render-world component that lives on the main render target view and
 /// specifies the corresponding Egui view.
@@ -89,6 +84,7 @@ pub struct EguiViewTarget(pub Entity);
 pub fn extract_egui_camera_view_system(
     mut commands: Commands,
     mut world: ResMut<MainWorld>,
+    main_pass_formats: Res<CameraMainPassTextureFormats>,
     mut live_entities: Local<HashSet<RetainedViewEntity>>,
 ) {
     live_entities.clear();
@@ -98,10 +94,9 @@ pub fn extract_egui_camera_view_system(
         &Camera,
         &mut EguiRenderOutput,
         &EguiContextSettings,
-        Has<Hdr>,
     )>();
 
-    for (main_entity, render_entity, camera, mut egui_render_output, settings, hdr) in
+    for (main_entity, render_entity, camera, mut egui_render_output, settings) in
         &mut q.iter_mut(&mut world)
     {
         // Move Egui shapes and textures out of the main world into the render one.
@@ -121,6 +116,12 @@ pub fn extract_egui_camera_view_system(
         const UI_CAMERA_TRANSFORM_OFFSET: f32 = -0.1;
 
         if let Some(physical_viewport_rect) = camera.physical_viewport_rect() {
+            let Some(target_format) = main_pass_formats.get(&render_entity).copied() else {
+                commands
+                    .get_entity(render_entity)
+                    .expect("Camera entity wasn't synced.");
+                continue;
+            };
             // Use a projection matrix with the origin in the top left instead of the bottom left that comes with OrthographicProjection.
             let projection_matrix = Mat4::orthographic_rh(
                 0.0,
@@ -146,7 +147,7 @@ pub fn extract_egui_camera_view_system(
                             UI_CAMERA_FAR + UI_CAMERA_TRANSFORM_OFFSET,
                         ),
                         clip_from_world: None,
-                        hdr,
+                        target_format,
                         viewport: UVec4::from((
                             physical_viewport_rect.min,
                             physical_viewport_rect.size(),
@@ -265,8 +266,8 @@ impl EguiPipeline {
             } else if !device_features.contains(Features::TEXTURE_BINDING_ARRAY) {
                 warn!("Feature TEXTURE_BINDING_ARRAY is not supported on this device.");
                 None
-            } else if !device_features.contains(Features::PUSH_CONSTANTS) {
-                warn!("Feature PUSH_CONSTANTS is not supported on this device.");
+            } else if !device_features.contains(Features::IMMEDIATES) {
+                warn!("Feature IMMEDIATES is not supported on this device.");
                 None
             } else {
                 match NonZeroU32::new(min(
@@ -308,8 +309,8 @@ impl EguiPipeline {
 /// Key for specialized pipeline.
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 pub struct EguiPipelineKey {
-    /// Equals `true` for cameras that have the [`Hdr`] component.
-    pub hdr: bool,
+    #[allow(missing_docs)]
+    pub target_format: TextureFormat,
 }
 
 impl SpecializedRenderPipeline for EguiPipeline {
@@ -317,14 +318,11 @@ impl SpecializedRenderPipeline for EguiPipeline {
 
     fn specialize(&self, key: Self::Key) -> RenderPipelineDescriptor {
         let mut shader_defs = Vec::new();
-        let mut push_constant_ranges = Vec::new();
+        let mut immediate_size = 0;
 
         if let Some(bindless) = self.bindless {
             shader_defs.push(ShaderDefVal::UInt("BINDLESS".into(), u32::from(bindless)));
-            push_constant_ranges.push(PushConstantRange {
-                stages: ShaderStages::FRAGMENT,
-                range: 0..4,
-            });
+            immediate_size = 4;
         }
 
         RenderPipelineDescriptor {
@@ -351,11 +349,7 @@ impl SpecializedRenderPipeline for EguiPipeline {
                 shader_defs,
                 entry_point: Some("fs_main".into()),
                 targets: vec![Some(ColorTargetState {
-                    format: if key.hdr {
-                        ViewTarget::TEXTURE_FORMAT_HDR
-                    } else {
-                        TextureFormat::bevy_default()
-                    },
+                    format: key.target_format,
                     blend: Some(BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                     write_mask: ColorWrites::ALL,
                 })],
@@ -363,7 +357,7 @@ impl SpecializedRenderPipeline for EguiPipeline {
             primitive: PrimitiveState::default(),
             depth_stencil: None,
             multisample: MultisampleState::default(),
-            push_constant_ranges,
+            immediate_size,
             zero_initialize_workgroup_memory: false,
         }
     }
@@ -491,7 +485,7 @@ pub trait EguiBevyPaintCallbackImpl: Send + Sync {
     fn prepare_render<'w>(
         &self,
         info: egui::PaintCallbackInfo,
-        render_context: &mut RenderContext<'w>,
+        render_context: &mut RenderContext,
         render_entity: RenderEntity,
         pipeline_key: EguiPipelineKey,
         world: &'w World,

@@ -20,7 +20,7 @@ use crate::render::{
     systems::{EguiPipelines, EguiRenderData, EguiTextureBindGroups, EguiTransforms},
 };
 
-pub fn prepare_egui_pass_node(world: &mut World) {
+pub(crate) fn prepare_egui_pass_node(world: &mut World) {
     world.resource_scope(|world, mut render_data: Mut<EguiRenderData>| {
         for (_main_entity, data) in &mut render_data.0 {
             let Some(key) = data.key else {
@@ -44,7 +44,7 @@ pub fn prepare_egui_pass_node(world: &mut World) {
     });
 }
 
-pub fn egui_pass_node(
+pub(crate) fn egui_pass_node(
     world: &World,
     current_view: Res<CurrentView>,
     render_views: Query<&EguiCameraView>,

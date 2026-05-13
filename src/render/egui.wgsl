@@ -26,7 +26,7 @@ struct VertexOutput {
 struct BindlessOffset {
     offset: u32,
 };
-var<push_constant> offset: BindlessOffset;
+var<immediate> offset: BindlessOffset;
 
 #else //BINDLESS
 @group(1) @binding(0) var image_texture: texture_2d<f32>;

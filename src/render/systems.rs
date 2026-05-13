@@ -265,19 +265,19 @@ pub fn queue_pipelines_system(
     pipeline_cache: Res<PipelineCache>,
     mut specialized_pipelines: ResMut<SpecializedRenderPipelines<EguiPipeline>>,
     egui_pipeline: Res<EguiPipeline>,
-    egui_views: Query<&EguiViewTarget, With<ExtractedView>>,
-    camera_views: Query<(&MainEntity, &ExtractedCamera)>,
+    egui_views: Query<(&ExtractedView, &EguiViewTarget)>,
+    camera_views: Query<&MainEntity, With<ExtractedCamera>>,
 ) {
     let pipelines: HashMap<MainEntity, CachedRenderPipelineId> = egui_views
         .iter()
-        .filter_map(|egui_camera_view| {
-            let (main_entity, extracted_camera) = camera_views.get(egui_camera_view.0).ok()?;
+        .filter_map(|(egui_extracted_view, egui_camera_view)| {
+            let main_entity = camera_views.get(egui_camera_view.0).ok()?;
 
             let pipeline_id = specialized_pipelines.specialize(
                 &pipeline_cache,
                 &egui_pipeline,
                 EguiPipelineKey {
-                    hdr: extracted_camera.hdr,
+                    target_format: egui_extracted_view.target_format,
                 },
             );
             Some((*main_entity, pipeline_id))
@@ -365,7 +365,7 @@ pub fn prepare_egui_render_target_data_system(
             continue;
         };
         data.key = Some(EguiPipelineKey {
-            hdr: extracted_camera.hdr,
+            target_format: view.target_format,
         });
 
         data.pixels_per_point = computed_scale_factor.scale_factor;

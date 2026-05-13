@@ -1261,7 +1261,10 @@ impl Plugin for EguiPlugin {
                 Core2d, Core2dSystems, Core3d, Core3dSystems, upscaling::upscaling,
             };
 
-            use crate::render::{egui_pass_node, graph::NodeEgui, prepare_egui_pass_node};
+            use crate::render::{
+                graph::NodeEgui,
+                render_pass::{egui_pass_node, prepare_egui_pass_node},
+            };
 
             load_internal_asset!(
                 app,
@@ -1361,6 +1364,8 @@ impl Plugin for EguiPlugin {
     #[cfg(feature = "render")]
     fn finish(&self, app: &mut App) {
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+            use bevy_render::camera::extract_cameras;
+
             render_app
                 .insert_resource(render::EguiRenderSettings {
                     bindless_mode_array_size: self.bindless_mode_array_size,
@@ -1370,10 +1375,8 @@ impl Plugin for EguiPlugin {
                 .init_resource::<render::systems::EguiTransforms>()
                 .init_resource::<render::systems::EguiRenderData>()
                 .add_systems(
-                    // Seems to be just the set to add/remove nodes, as it'll run before
-                    // `RenderSystems::ExtractCommands` where render nodes get updated.
                     ExtractSchedule,
-                    render::extract_egui_camera_view_system,
+                    render::extract_egui_camera_view_system.after(extract_cameras),
                 )
                 .add_systems(
                     Render,
