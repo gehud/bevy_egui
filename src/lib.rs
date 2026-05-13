@@ -1257,6 +1257,14 @@ impl Plugin for EguiPlugin {
 
         #[cfg(feature = "render")]
         {
+            use bevy_core_pipeline::{Core2d, Core2dSystems};
+
+            use crate::render::{
+                egui_pass_node,
+                graph::{NodeEgui, SubGraphEgui},
+                prepare_egui_pass_node,
+            };
+
             load_internal_asset!(
                 app,
                 render::EGUI_SHADER_HANDLE,
@@ -1268,16 +1276,17 @@ impl Plugin for EguiPlugin {
                 return;
             };
 
-            let egui_graph_2d = render::get_egui_graph(render_app);
-            let egui_graph_3d = render::get_egui_graph(render_app);
-            let mut graph = render_app
-                .world_mut()
-                .resource_mut::<bevy_render::render_graph::RenderGraph>();
+            render_app
+                .configure_sets(Core2d, NodeEgui::EguiPass)
+                .add_systems(
+                    Core2d,
+                    (
+                        prepare_egui_pass_node.before(NodeEgui::EguiPass),
+                        egui_pass_node.in_set(NodeEgui::EguiPass),
+                    ),
+                );
 
-            if let Some(graph_2d) =
-                graph.get_sub_graph_mut(bevy_core_pipeline::core_2d::graph::Core2d)
-            {
-                graph_2d.add_sub_graph(render::graph::SubGraphEgui, egui_graph_2d);
+            if let Some(graph_2d) = graph.get_sub_graph_mut(bevy_core_pipeline::Core2d) {
                 graph_2d.add_node(
                     render::graph::NodeEgui::EguiPass,
                     render::RunEguiSubgraphOnEguiViewNode,
@@ -1299,7 +1308,6 @@ impl Plugin for EguiPlugin {
             if let Some(graph_3d) =
                 graph.get_sub_graph_mut(bevy_core_pipeline::core_3d::graph::Core3d)
             {
-                graph_3d.add_sub_graph(render::graph::SubGraphEgui, egui_graph_3d);
                 graph_3d.add_node(
                     render::graph::NodeEgui::EguiPass,
                     render::RunEguiSubgraphOnEguiViewNode,

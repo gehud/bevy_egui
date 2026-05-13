@@ -6,14 +6,14 @@ use std::{
 
 /// Defines Egui node graph.
 pub mod graph {
-    use bevy_render::render_graph::{RenderLabel, RenderSubGraph};
+    use bevy_ecs::schedule::{ScheduleLabel, SystemSet};
 
     /// Egui subgraph (is run by [`super::RunEguiSubgraphOnEguiViewNode`]).
-    #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderSubGraph)]
+    #[derive(Debug, Hash, PartialEq, Eq, Clone, ScheduleLabel)]
     pub struct SubGraphEgui;
 
     /// Egui node defining the Egui rendering pass.
-    #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
+    #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
     pub enum NodeEgui {
         /// Egui rendering pass.
         EguiPass,
@@ -43,7 +43,6 @@ use bevy_mesh::VertexBufferLayout;
 use bevy_platform::collections::HashSet;
 use bevy_render::{
     MainWorld,
-    render_graph::{Node, NodeRunError, RenderGraph, RenderGraphContext},
     render_phase::TrackedRenderPass,
     render_resource::{
         BindGroupLayoutEntries, FragmentState, RenderPipelineDescriptor, SpecializedRenderPipeline,
@@ -52,7 +51,7 @@ use bevy_render::{
     },
     renderer::{RenderContext, RenderDevice},
     sync_world::{RenderEntity, TemporaryRenderEntity},
-    view::{ExtractedView, Hdr, RetainedViewEntity, ViewTarget},
+    view::{ExtractedView, RetainedViewEntity, ViewTarget},
 };
 use bevy_shader::{Shader, ShaderDefVal};
 use egui::{TextureFilter, TextureOptions};
