@@ -1,13 +1,14 @@
 use bevy_camera::Viewport;
 use bevy_ecs::{
     error::Result,
-    system::Res,
+    query::With,
+    system::{Query, Res},
     world::{Mut, World},
 };
 use bevy_math::{URect, UVec2};
 use bevy_render::{
     camera::ExtractedCamera,
-    render_resource::{IndexFormat, PipelineCache, RenderPassDescriptor, ShaderStages},
+    render_resource::{IndexFormat, PipelineCache, RenderPassDescriptor},
     renderer::{CurrentView, RenderContext, ViewQuery},
     sync_world::RenderEntity,
     view::{ExtractedView, ViewTarget},
@@ -15,7 +16,7 @@ use bevy_render::{
 use bevy_utils::default;
 
 use crate::render::{
-    DrawPrimitive, EguiViewTarget,
+    DrawPrimitive, EguiCameraView, EguiViewTarget,
     systems::{EguiPipelines, EguiRenderData, EguiTextureBindGroups, EguiTransforms},
 };
 
@@ -46,16 +47,21 @@ pub fn prepare_egui_pass_node(world: &mut World) {
 pub fn egui_pass_node(
     world: &World,
     current_view: Res<CurrentView>,
-    egui_view_query: ViewQuery<(&ExtractedView, &EguiViewTarget)>,
+    render_views: Query<&EguiCameraView>,
+    egui_view_query: ViewQuery<&ExtractedView, With<EguiViewTarget>>,
     egui_view_target_query: ViewQuery<(&ViewTarget, &ExtractedCamera)>,
     mut ctx: RenderContext,
 ) -> Result {
+    if !render_views.contains(current_view.0) {
+        return Ok(());
+    };
+
     let egui_pipelines = &world.resource::<EguiPipelines>().0;
     let pipeline_cache = world.resource::<PipelineCache>();
     let render_data = world.resource::<EguiRenderData>();
 
     // Query the UI view components.
-    let (view, view_target) = egui_view_query.into_inner();
+    let view = egui_view_query.into_inner();
 
     let (target, camera) = egui_view_target_query.into_inner();
 
@@ -184,11 +190,7 @@ pub fn egui_pass_node(
                     // Use push constant to cheaply provide which texture to use inside
                     // binding array. This is used to avoid costly set_bind_group operations
                     // when frequent switching between textures is being done
-                    render_pass.set_push_constants(
-                        ShaderStages::FRAGMENT,
-                        0,
-                        bytemuck::bytes_of(bindless_offset),
-                    );
+                    render_pass.set_immediates(0, bytemuck::bytes_of(bindless_offset));
                 }
 
                 render_pass.draw_indexed(
@@ -222,7 +224,7 @@ pub fn egui_pass_node(
                     command.callback.cb().render(
                         info,
                         &mut render_pass,
-                        RenderEntity::from(current_view),
+                        RenderEntity::from(current_view.0),
                         pipeline_key,
                         world,
                     );

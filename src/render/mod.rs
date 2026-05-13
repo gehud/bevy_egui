@@ -6,11 +6,7 @@ use std::{
 
 /// Defines Egui node graph.
 pub mod graph {
-    use bevy_ecs::schedule::{ScheduleLabel, SystemSet};
-
-    /// Egui subgraph (is run by [`super::RunEguiSubgraphOnEguiViewNode`]).
-    #[derive(Debug, Hash, PartialEq, Eq, Clone, ScheduleLabel)]
-    pub struct SubGraphEgui;
+    use bevy_ecs::schedule::SystemSet;
 
     /// Egui node defining the Egui rendering pass.
     #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
@@ -21,12 +17,11 @@ pub mod graph {
 }
 
 use crate::{
-    EguiContextSettings, EguiRenderOutput, RenderComputedScaleFactor,
-    render::graph::{NodeEgui, SubGraphEgui},
+    EguiContextSettings, EguiRenderOutput, RenderComputedScaleFactor, render::graph::NodeEgui,
 };
 use bevy_app::SubApp;
 use bevy_asset::{Handle, RenderAssetUsages, uuid_handle};
-use bevy_camera::Camera;
+use bevy_camera::{Camera, Hdr};
 use bevy_ecs::{
     component::Component,
     entity::Entity,
@@ -89,38 +84,6 @@ pub struct EguiCameraView(pub Entity);
 /// This is the inverse of [`EguiCameraView`].
 #[derive(Component, Debug)]
 pub struct EguiViewTarget(pub Entity);
-
-/// Adds and returns an Egui subgraph.
-pub fn get_egui_graph(render_app: &mut SubApp) -> RenderGraph {
-    let pass_node = EguiPassNode::new(render_app.world_mut());
-    let mut graph = RenderGraph::default();
-    graph.add_node(NodeEgui::EguiPass, pass_node);
-    graph
-}
-
-/// A [`Node`] that executes the Egui rendering subgraph on the Egui view.
-pub struct RunEguiSubgraphOnEguiViewNode;
-
-impl Node for RunEguiSubgraphOnEguiViewNode {
-    fn run<'w>(
-        &self,
-        graph: &mut RenderGraphContext,
-        _: &mut RenderContext<'w>,
-        world: &'w World,
-    ) -> Result<(), NodeRunError> {
-        // Fetch the UI view.
-        let Some(mut render_views) = world.try_query::<&EguiCameraView>() else {
-            return Ok(());
-        };
-        let Ok(default_camera_view) = render_views.get(world, graph.view_entity()) else {
-            return Ok(());
-        };
-
-        // Run the subgraph on the Egui view.
-        graph.run_sub_graph(SubGraphEgui, vec![], Some(default_camera_view.0), None)?;
-        Ok(())
-    }
-}
 
 /// Extracts all Egui contexts associated with a camera into the render world.
 pub fn extract_egui_camera_view_system(
